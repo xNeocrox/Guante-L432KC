@@ -1,0 +1,16 @@
+main.c:196:5:main	8	static
+main.c:329:6:MPU6050_Init	32	static
+main.c:361:22:MPU6050_Read_Accel	80	static
+main.c:388:21:MPU6050_Read_Gyro	80	static
+main.c:421:6:SystemClock_Config	184	static
+main.c:495:13:MX_ADC1_Init	32	static
+main.c:583:13:MX_I2C1_Init	8	static
+main.c:632:13:MX_TIM6_Init	24	static
+main.c:670:13:MX_USART1_UART_Init	8	static
+main.c:705:13:MX_GPIO_Init	40	static
+main.c:747:6:HAL_GPIO_EXTI_Callback	16	static
+main.c:765:6:Inicializacion	32	static
+main.c:976:6:AnalogRead	40	static
+main.c:1091:6:Gyro	64	static
+main.c:1132:6:EnvioDatos	56	static
+main.c:1174:6:Error_Handler	4	static,ignoring_inline_asm
