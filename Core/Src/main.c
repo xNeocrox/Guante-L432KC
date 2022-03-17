@@ -20,11 +20,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-
 #include "math.h"
 #include "fonts.h"
 #include "ssd1306.h"
 #include "Animacion_Carga.h"
+
+#include "app_common_typedef.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -51,6 +52,7 @@ ADC_HandleTypeDef hadc1;
 I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim6;
+TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart1;
 
@@ -107,7 +109,9 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_TIM7_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM7_Init(void);
 void Inicializacion(void *argument);
 void AnalogRead(void *argument);
 void Gyro(void *argument);
@@ -127,21 +131,8 @@ uint32_t grados_pack[5]={0,0,0,0,0};
 uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
 uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 
+HAL_StatusTypeDef Flag_SSD1306;
 //---------------------------------------------------------------------
-#define MPU6050_ADDR 0xD0
-
-
-#define SMPLRT_DIV_REG 0x19
-#define GYRO_CONFIG_REG 0x1B
-#define ACCEL_CONFIG_REG 0x1C
-#define ACCEL_XOUT_H_REG 0x3B
-#define TEMP_OUT_H_REG 0x41
-#define GYRO_XOUT_H_REG 0x43
-#define PWR_MGMT_1_REG 0x6B
-#define WHO_AM_I_REG 0x75
-
-#define A_R 16384.0
-#define RAD_TO_DEG  57.295779
 
 /*int16_t Gyro_X_RAW = 0;
 int16_t Gyro_Y_RAW = 0;
@@ -150,11 +141,12 @@ int16_t Gyro_Z_RAW = 0;*/
 int16_t Accel_Y_RAW = 0;
 int16_t Accel_Z_RAW = 0;*/
 
-float count = 0;
-
+float count_gyro = 0;
+//extern float count_gyro;
+extern uint32_t TickGet;
 //float Gx, Gy, Gz, Ax, Ay;
 
-struct AccelFunction{
+/*struct AccelFunction{
 	float Ax;
 	float Ay;
 };
@@ -163,16 +155,16 @@ struct GyroFunction{
 	float Gx;
 	float Gy;
 	float Gz;
-};
+};*/
 
 //float AnguloX, AnguloY;
 float dt = 0;;
 
-void MPU6050_Init (void);
-struct GyroFunction MPU6050_Read_Gyro (void);
-struct AccelFunction MPU6050_Read_Accel (void);
+void MPU6050_Init (I2C_HandleTypeDef hi2c);
+struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef hi2c);
+struct AccelFunction MPU6050_Read_Accel (I2C_HandleTypeDef hi2c);
 
-struct Datos_Analogicos
+/*struct Datos_Analogicos
 {
 	uint8_t Analog_pulgar;
 	uint8_t Analog_indice;
@@ -186,7 +178,7 @@ struct Datos_Gyro
 	uint8_t AnguloX;
 	uint8_t AnguloY;
 
-};
+}; */
 /* USER CODE END 0 */
 
 /**
@@ -221,10 +213,12 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM6_Init();
   MX_USART1_UART_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   //HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED); //????
 
   HAL_TIM_Base_Start_IT(&htim6);
+  HAL_TIM_Base_Start_IT(&htim7);
   __HAL_UART_ENABLE_IT(&huart1,UART_IT_TC);
 
 
@@ -280,35 +274,38 @@ int main(void)
   /* creation of Flag */
   FlagHandle = osEventFlagsNew(&Flag_attributes);
 
+  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 100); //antes el timeout a 20000
+
+
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
-  /*SSD1306_Init();
-   SSD1306_Clear();
-   SSD1306_GotoXY(0, 0);
-   SSD1306_Puts("INICIANDO..", &Font_11x18, 1);
-   SSD1306_UpdateScreen();
 
-   for(int i = 0; i<4; i++){
- 	  for(int j = 0; j<38; j++){
- 		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
- 		  SSD1306_DrawBitmap(0, 20, Animacion[j], 128, 45, 1);
- 		  SSD1306_UpdateScreen();
+  if(HAL_OK == Flag_SSD1306){
+	  SSD1306_Init();
+	  SSD1306_Clear();
+	  SSD1306_GotoXY(0, 0);
+	  SSD1306_Puts("INICIANDO..", &Font_11x18, 1);
+	  SSD1306_UpdateScreen();
 
+	  for(int i = 0; i<4; i++){
+		  for(int j = 0; j<38; j++){
+			  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
+	   		  SSD1306_DrawBitmap(0, 20, Animacion[j], 128, 45, 1);
+	   		  SSD1306_UpdateScreen();
+	   	  }
+	  }
+	  SSD1306_Clear();
 
- 	  }
+	  SSD1306_GotoXY(0, 0);
+	  SSD1306_Puts("INICIANDO..", &Font_11x18, 1);
 
-   }
+	  SSD1306_GotoXY(0, 30);
+	  SSD1306_Puts("Pulsa para", &Font_7x10, 1);
+	  SSD1306_GotoXY(0, 50);
+	  SSD1306_Puts("calibrar", &Font_7x10, 1);
+	  SSD1306_UpdateScreen();
+  }
 
-   SSD1306_Clear();
-
-   SSD1306_GotoXY(0, 0);
-   SSD1306_Puts("INICIANDO..", &Font_11x18, 1);
-
-   SSD1306_GotoXY(0, 30);
-   SSD1306_Puts("Pulsa para", &Font_7x10, 1);
-   SSD1306_GotoXY(0, 50);
-   SSD1306_Puts("calibrar", &Font_7x10, 1);
-   SSD1306_UpdateScreen();*/
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -326,93 +323,6 @@ int main(void)
   /* USER CODE END 3 */
 }
 
-void MPU6050_Init (void)
-{
-	uint8_t check;
-	uint8_t Data;
-
-	// check device ID WHO_AM_I
-
-	HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR,WHO_AM_I_REG,1, &check, 1, 1000);
-
-	if (check == 104)  // 0x68 will be returned by the sensor if everything goes well
-	{
-		// power management register 0X6B we should write all 0's to wake the sensor up
-		Data = 0;
-		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, PWR_MGMT_1_REG, 1,&Data, 1, 1000);
-
-		// Set DATA RATE of 1KHz by writing SMPLRT_DIV register
-		Data = 0x07;
-		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, SMPLRT_DIV_REG, 1, &Data, 1, 1000);
-
-		// Set accelerometer configuration in ACCEL_CONFIG Register
-		// XA_ST=0,YA_ST=0,ZA_ST=0, FS_SEL=0 -> ± 2g
-		Data = 0x00;
-		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, ACCEL_CONFIG_REG, 1, &Data, 1, 1000);
-
-		// Set Gyroscopic configuration in GYRO_CONFIG Register
-		// XG_ST=0,YG_ST=0,ZG_ST=0, FS_SEL=0 -> ± 250 °/s
-		Data = 0x00;
-		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, GYRO_CONFIG_REG, 1, &Data, 1, 1000);
-	}
-
-}
-
-struct AccelFunction MPU6050_Read_Accel (void)
-{
-	uint8_t Rec_Data[6];
-
-	int16_t Accel_X_RAW = 0;
-	int16_t Accel_Y_RAW = 0;
-	int16_t Accel_Z_RAW = 0;
-	struct AccelFunction datos;
-
-	// Read 6 BYTES of data starting from ACCEL_XOUT_H register
-
-	HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, Rec_Data, 6, 1000);
-
-	Accel_X_RAW = (int16_t)(Rec_Data[0] << 8 | Rec_Data [1]);
-	Accel_Y_RAW = (int16_t)(Rec_Data[2] << 8 | Rec_Data [3]);
-	Accel_Z_RAW = (int16_t)(Rec_Data[4] << 8 | Rec_Data [5]);
-
-	/*** convert the RAW values into acceleration in 'g'
-	     we have to divide according to the Full scale value set in FS_SEL
-	     I have configured FS_SEL = 0. So I am dividing by 16384.0
-	     for more details check ACCEL_CONFIG Register              ****/
-	datos.Ax = atan(-1*(Accel_X_RAW/A_R)/sqrt(pow((Accel_Y_RAW/A_R),2) + pow((Accel_Z_RAW/A_R),2)))*RAD_TO_DEG;
-	datos.Ay = atan((Accel_Y_RAW/A_R)/sqrt(pow((Accel_X_RAW/A_R),2) + pow((Accel_Z_RAW/A_R),2)))*RAD_TO_DEG;
-
-	return datos;
-}
-
-struct GyroFunction MPU6050_Read_Gyro (void)
-{
-	int16_t Gyro_X_RAW = 0;
-	int16_t Gyro_Y_RAW = 0;
-	int16_t Gyro_Z_RAW = 0;
-	struct GyroFunction datos;
-
-	uint8_t Rec_Data[6];
-
-	// Read 6 BYTES of data starting from GYRO_XOUT_H register
-
-	HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, GYRO_XOUT_H_REG, 1, Rec_Data, 6, 1000);
-
-	Gyro_X_RAW = (int16_t)(Rec_Data[0] << 8 | Rec_Data [1]);
-	Gyro_Y_RAW = (int16_t)(Rec_Data[2] << 8 | Rec_Data [3]);
-	Gyro_Z_RAW = (int16_t)(Rec_Data[4] << 8 | Rec_Data [5]);
-
-	/*** convert the RAW values into dps (°/s)
-	     we have to divide according to the Full scale value set in FS_SEL
-	     I have configured FS_SEL = 0. So I am dividing by 131.0
-	     for more details check GYRO_CONFIG Register              ****/
-
-	datos.Gx = Gyro_X_RAW/131.0;
-	datos.Gy = Gyro_Y_RAW/131.0;
-	datos.Gz = Gyro_Z_RAW/131.0;
-
-	return datos;
-}
 
 /**
   * @brief System Clock Configuration
@@ -663,6 +573,44 @@ static void MX_TIM6_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 320;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 100;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -744,6 +692,17 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(&htim6 == htim){
+		count_gyro++;
+	}
+	else if(&htim7 == htim){
+		TickGet++;
+	}
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	if(GPIO_Pin == GPIO_PIN_0){
@@ -775,16 +734,17 @@ void Inicializacion(void *argument)
 	  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
 	  xEventGroupClearBits(FlagHandle, 2);
 
-	  SSD1306_Clear();
+	  if(HAL_OK == Flag_SSD1306){
+		  SSD1306_Clear();
 
-	  SSD1306_GotoXY(0, 0);
-	  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+		  SSD1306_GotoXY(0, 0);
+		  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
 
-	  SSD1306_GotoXY(0, 30);
-	  SSD1306_Puts("Abre la", &Font_7x10, 1);
-	  SSD1306_GotoXY(0, 50);
-	  SSD1306_Puts("mano", &Font_7x10, 1);
-	  SSD1306_UpdateScreen();
+		  SSD1306_GotoXY(0, 30);
+		  SSD1306_Puts("Abre la", &Font_7x10, 1);
+		  SSD1306_GotoXY(0, 50);
+		  SSD1306_Puts("mano", &Font_7x10, 1);
+		  SSD1306_UpdateScreen();
 
 
 	 	  //abre la mano 2 segundos
@@ -796,71 +756,6 @@ void Inicializacion(void *argument)
 	 	  }
 
 	 	 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);*/
-	  SSD1306_GotoXY(90, 35);
-	  SSD1306_Puts("3", &Font_11x18, 1);
-	  SSD1306_UpdateScreen();
-	  osDelay(1000);
-
-	  SSD1306_GotoXY(90, 35);
-	  SSD1306_Puts("2", &Font_11x18, 1);
-	  SSD1306_UpdateScreen();
-	  osDelay(1000);
-
-	  SSD1306_GotoXY(90, 35);
-	  SSD1306_Puts("1", &Font_11x18, 1);
-	  SSD1306_UpdateScreen();
-	  osDelay(1000);
-
-	  SSD1306_GotoXY(90, 35);
-	  SSD1306_Puts("0", &Font_11x18, 1);
-	  SSD1306_UpdateScreen();
-	  osDelay(1000);
-	  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
-	  SSD1306_UpdateScreen();
-
-
-	 		 HAL_ADC_Start(&hadc1);
-	 		 status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_min[0] = HAL_ADC_GetValue(&hadc1);
-	 		 }
-
-	 		 status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_min[1] = HAL_ADC_GetValue(&hadc1);
-	 		 }
-
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_min[2] = HAL_ADC_GetValue(&hadc1);
-	 		 }
-
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_min[3] = HAL_ADC_GetValue(&hadc1);
-	 		 }
-
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_min[4] = HAL_ADC_GetValue(&hadc1);
-	 		 }
-
-	 		 HAL_ADC_Stop(&hadc1);
-
-	 	 //cierra la mano 2 segundos
-	 	 /* for(int i = 0; i < 12; i++){
-	 		  HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_1);
-	 		  osDelay(500);
-	 	  }
-
-	 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);*/
-
-		  SSD1306_GotoXY(0, 30);
-		  SSD1306_Puts("Cierra la", &Font_7x10, 1);
-		  SSD1306_GotoXY(0, 50);
-		  SSD1306_Puts("mano", &Font_7x10, 1);
-		  SSD1306_UpdateScreen();
-
 		  SSD1306_GotoXY(90, 35);
 		  SSD1306_Puts("3", &Font_11x18, 1);
 		  SSD1306_UpdateScreen();
@@ -882,86 +777,157 @@ void Inicializacion(void *argument)
 		  osDelay(1000);
 		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
 		  SSD1306_UpdateScreen();
+	  }
 
-	 		 HAL_ADC_Start(&hadc1);
-	 		 status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_max[0] = HAL_ADC_GetValue(&hadc1);
-	 		 }
+	 	HAL_ADC_Start(&hadc1);
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_min[0] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 		 status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_max[1] = HAL_ADC_GetValue(&hadc1);
-	 		 }
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_min[1] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_max[2] = HAL_ADC_GetValue(&hadc1);
-	 		 }
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_min[2] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_max[3] = HAL_ADC_GetValue(&hadc1);
-	 		 }
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_min[3] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 		status = HAL_ADC_PollForConversion(&hadc1, 1);
-	 		 if(status == HAL_OK){
-	 			 analog_max[4] = HAL_ADC_GetValue(&hadc1);
-	 		 }
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_min[4] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 		 HAL_ADC_Stop(&hadc1);
+	 	HAL_ADC_Stop(&hadc1);
 
-	 		 //analog_max[4] > analog_min[4] && analog_max[3] > analog_min[3] && analog_max[2] > analog_min[2] && analog_max[1] > analog_min[1] &&
-	 		 if(analog_max[0] > analog_min[0] && analog_max[1] > analog_min[1] && analog_max[4] > analog_min[4]){
-	 			 osDelay(2000);
+	 	 //cierra la mano 2 segundos
+	 	 /* for(int i = 0; i < 12; i++){
+	 		  HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_1);
+	 		  osDelay(500);
+	 	  }
 
+	 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);*/
 
-	 			  SSD1306_Clear();
+	 	if(HAL_OK == Flag_SSD1306){
+	 		SSD1306_GotoXY(0, 30);
+	 		SSD1306_Puts("Cierra la", &Font_7x10, 1);
+			SSD1306_GotoXY(0, 50);
+			SSD1306_Puts("mano", &Font_7x10, 1);
+			SSD1306_UpdateScreen();
 
-	 			  SSD1306_GotoXY(0, 0);
-	 			  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+			SSD1306_GotoXY(90, 35);
+			SSD1306_Puts("3", &Font_11x18, 1);
+			SSD1306_UpdateScreen();
+			osDelay(1000);
 
-	 			  SSD1306_GotoXY(0, 30);
-	 			  SSD1306_Puts("Calibracion", &Font_7x10, 1);
-	 			  SSD1306_GotoXY(0, 50);
-	 			  SSD1306_Puts("Correcta", &Font_7x10, 1);
-	 			  SSD1306_UpdateScreen();
+			SSD1306_GotoXY(90, 35);
+			SSD1306_Puts("2", &Font_11x18, 1);
+			SSD1306_UpdateScreen();
+			osDelay(1000);
 
-	 			  osDelay(1000);
-	 			     xEventGroupClearBits(FlagHandle, 1);
-		 			 xEventGroupSetBits(FlagHandle, 2); //envio de datos
-	 		 }
-	 		 else{
-	 			//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-	 			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-	 			xEventGroupClearBits(FlagHandle, 1);
+			SSD1306_GotoXY(90, 35);
+			SSD1306_Puts("1", &Font_11x18, 1);
+			SSD1306_UpdateScreen();
+			osDelay(1000);
 
-	 			  SSD1306_Clear();
+			SSD1306_GotoXY(90, 35);
+			SSD1306_Puts("0", &Font_11x18, 1);
+			SSD1306_UpdateScreen();
+			osDelay(1000);
+			SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
+			SSD1306_UpdateScreen();
+	 	}
 
-	 			  SSD1306_GotoXY(0, 0);
-	 			  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
-				  SSD1306_GotoXY(0, 30);
-				  SSD1306_Puts("Calibracion", &Font_7x10, 1);
-				  SSD1306_GotoXY(0, 50);
-				  SSD1306_Puts("Incorrecta", &Font_7x10, 1);
-				  SSD1306_UpdateScreen();
+	 	HAL_ADC_Start(&hadc1);
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_max[0] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 			 osDelay(1000);
-	 			  SSD1306_Clear();
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_max[1] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-	 			  SSD1306_GotoXY(0, 0);
-	 			  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
-				  SSD1306_GotoXY(0, 30);
-				  SSD1306_Puts("Pulsa para", &Font_7x10, 1);
-				  SSD1306_GotoXY(0, 50);
-				  SSD1306_Puts("Calibrar", &Font_7x10, 1);
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_max[2] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-				  SSD1306_GotoXY(90, 35);
-				  SSD1306_Puts("!!", &Font_11x18, 1);
+ 		status = HAL_ADC_PollForConversion(&hadc1, 1);
+ 		if(status == HAL_OK){
+ 			analog_max[3] = HAL_ADC_GetValue(&hadc1);
+	 	}
 
-				  SSD1306_UpdateScreen();
-	 		 }
-    osDelay(1);
+	 	status = HAL_ADC_PollForConversion(&hadc1, 1);
+	 	if(status == HAL_OK){
+	 		analog_max[4] = HAL_ADC_GetValue(&hadc1);
+	 	}
+
+	 	HAL_ADC_Stop(&hadc1);
+
+	 	if(analog_max[0] > analog_min[0]
+		   && analog_max[1] > analog_min[1]
+		   && analog_max[4] > analog_min[4]){
+
+	 		osDelay(2000);
+
+	 		if(HAL_OK == Flag_SSD1306){
+				SSD1306_Clear();
+
+				SSD1306_GotoXY(0, 0);
+				SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+
+				SSD1306_GotoXY(0, 30);
+				SSD1306_Puts("Calibracion", &Font_7x10, 1);
+				SSD1306_GotoXY(0, 50);
+				SSD1306_Puts("Correcta", &Font_7x10, 1);
+				SSD1306_UpdateScreen();
+	 		}
+
+	 		osDelay(1000);
+	 		xEventGroupClearBits(FlagHandle, 1);
+		 	xEventGroupSetBits(FlagHandle, 2); //envio de datos
+	 	}
+	 	else{
+	 		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+	 		//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+	 		xEventGroupClearBits(FlagHandle, 1);
+	 		if(HAL_OK == Flag_SSD1306){
+				SSD1306_Clear();
+
+				SSD1306_GotoXY(0, 0);
+				SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+				SSD1306_GotoXY(0, 30);
+				SSD1306_Puts("Calibracion", &Font_7x10, 1);
+				SSD1306_GotoXY(0, 50);
+				SSD1306_Puts("Incorrecta", &Font_7x10, 1);
+				SSD1306_UpdateScreen();
+
+				osDelay(1000);
+				SSD1306_Clear();
+
+				SSD1306_GotoXY(0, 0);
+				SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+				SSD1306_GotoXY(0, 30);
+				SSD1306_Puts("Pulsa para", &Font_7x10, 1);
+				SSD1306_GotoXY(0, 50);
+				SSD1306_Puts("Calibrar", &Font_7x10, 1);
+
+				SSD1306_GotoXY(90, 35);
+				SSD1306_Puts("!!", &Font_11x18, 1);
+
+				SSD1306_UpdateScreen();
+	 		}
+	 	}
+	 	osDelay(1);
   }
   /* USER CODE END 5 */
 }
@@ -987,10 +953,10 @@ void AnalogRead(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+	  xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 
-	 // SSD1306_GotoXY(0, 0);
-	  //SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
+	  SSD1306_GotoXY(0, 0);
+	  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
 
 	  HAL_ADC_Start(&hadc1);
 		 status = HAL_ADC_PollForConversion(&hadc1, 5);
@@ -1096,18 +1062,18 @@ void Gyro(void *argument)
 	struct GyroFunction datosG;
 	float AnguloX, AnguloY;
 
-	MPU6050_Init();
+	MPU6050_Init(hi2c1);
 
   /* Infinite loop */
   for(;;)
   {
 	xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 
-	datosG = MPU6050_Read_Gyro();
-	datosA = MPU6050_Read_Accel();
+	datosG = MPU6050_Read_Gyro(hi2c1);
+	datosA = MPU6050_Read_Accel(hi2c1);
 
-	dt = count/1000;
-	count = 0;
+	dt = count_gyro/1000;
+	count_gyro = 0;
 
 	AnguloX = 0.98*(AnguloX + datosG.Gx*dt) + 0.02*datosA.Ax;
 	AnguloY = 0.98*(AnguloY + datosG.Gy*dt) + 0.02*datosA.Ay;
