@@ -28,6 +28,9 @@
 #include "app_common_typedef.h"
 #include "MPU6050.h"
 
+#define Indice;
+#define Anular;
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -110,7 +113,6 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM6_Init(void);
-static void MX_TIM7_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM7_Init(void);
 void Inicializacion(void *argument);
@@ -143,6 +145,7 @@ uint32_t grados_pack[5]={0,0,0,0,0};
 //uint8_t grados_pack[5]={0,0,0,0,0};
 uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
 uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
+struct Datos_Gyro Inclinacion;
 
 //float AnguloX, AnguloY;
 
@@ -287,7 +290,6 @@ int main(void)
   /* creation of Flag */
   FlagHandle = osEventFlagsNew(&Flag_attributes);
 
-
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
 
@@ -307,7 +309,6 @@ int main(void)
   }
   /* USER CODE END 3 */
 }
-
 
 /**
   * @brief System Clock Configuration
@@ -422,7 +423,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_8;
+  sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
@@ -434,7 +435,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_9;
+  sConfig.Channel = ADC_CHANNEL_7;
   sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -442,7 +443,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_10;
+  sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -450,7 +451,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_11;
+  sConfig.Channel = ADC_CHANNEL_9;
   sConfig.Rank = ADC_REGULAR_RANK_4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -714,20 +715,23 @@ void Inicializacion(void *argument)
 	HAL_StatusTypeDef Flag_SSD1306;
 
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //PCB Led Off
   /* Infinite loop */
   for(;;)
   {
 
-	  switch(Flag_SSD_State){
+	  switch(Flag_SSD_State)
+	  {
 	  case WAIT_TIMER_TO_BE_READY:
-		  if(30000 < TickGet){
+		  if(30000 < TickGet)
+		  {
 			  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE ; //waiting for timer to be established
 		  }
 		  break;
 	  case SEARCHING_OLED_I2C_DEVICE:
-		  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 1000); //antes el timeout a 20000
-		  if(HAL_OK == Flag_SSD1306){
+		  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 1000); //before to the 20000 ms timeout
+		  if(HAL_OK == Flag_SSD1306)
+		  {
 			  Flag_SSD_State = OLED_IS_AVAILABLE;	//i2c screen is abailable
 		  }
 		  else{
@@ -741,8 +745,10 @@ void Inicializacion(void *argument)
 		  SSD1306_Puts("INICIANDO..", &Font_11x18, 1);
 		  SSD1306_UpdateScreen();
 
-		  for(int i = 0; i<4; i++){
-			  for(int j = 0; j<38; j++){
+		  for(int i = 0; i<4; i++)
+		  {
+			  for(int j = 0; j<38; j++)
+			  {
 				  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
 				  SSD1306_DrawBitmap(0, 20, Animacion[j], 128, 45, 1);
 				  SSD1306_UpdateScreen();
@@ -776,15 +782,16 @@ void Inicializacion(void *argument)
 	  case RUNNING_L:
 		  //nothing to do here
 		  break;
-
 	  }
 
 
 
-	  //only if init can be done by one of two's options, the FW can be runned
+	  //only if init can be done by one of two's options, the FW can be run
 
-	  if((RUNNING_O == Flag_SSD_State) || (RUNNING_L == Flag_SSD_State)){
-		  if(RUNNING_O == Flag_SSD_State){
+	  if((RUNNING_O == Flag_SSD_State) || (RUNNING_L == Flag_SSD_State))
+	  {
+		  if(RUNNING_O == Flag_SSD_State)
+		  {
 			  SSD1306_Clear();
 
 			  SSD1306_GotoXY(0, 0);
@@ -819,11 +826,13 @@ void Inicializacion(void *argument)
 			  SSD1306_UpdateScreen();
 		  }
 
-		  if(RUNNING_L == Flag_SSD_State){
-			  //abre la mano 2 segundos
+		  if(RUNNING_L == Flag_SSD_State)
+		  {
+			  //open hand 2 seconds
 			  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
-			  for(int i = 0; i < 6; i++){
+			  for(int i = 0; i < 6; i++)
+			  {
 				  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
 				  osDelay(500);
 			  }
@@ -833,35 +842,51 @@ void Inicializacion(void *argument)
 
 			HAL_ADC_Start(&hadc1);
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_max[0] = HAL_ADC_GetValue(&hadc1);
-			}
-
-			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_max[1] = HAL_ADC_GetValue(&hadc1);
-			}
-
-			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
+			if(status == HAL_OK)
+			{
+#ifdef Medio
 				analog_max[2] = HAL_ADC_GetValue(&hadc1);
+#endif //Medio
 			}
 
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_max[3] = HAL_ADC_GetValue(&hadc1);
+			if(status == HAL_OK)
+			{
+#ifdef Indice
+				analog_max[1] = HAL_ADC_GetValue(&hadc1);
+#endif //Indice
 			}
 
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
+			if(status == HAL_OK)
+			{
+#ifdef Menique
 				analog_max[4] = HAL_ADC_GetValue(&hadc1);
+#endif //Menique
+			}
+
+			status = HAL_ADC_PollForConversion(&hadc1, 1);
+			if(status == HAL_OK)
+			{
+#ifdef Anular
+				analog_max[3] = HAL_ADC_GetValue(&hadc1);
+#endif //Anular
+			}
+
+			status = HAL_ADC_PollForConversion(&hadc1, 1);
+			if(status == HAL_OK)
+			{
+#ifdef Pulgar
+				analog_max[0] = HAL_ADC_GetValue(&hadc1);
+#endif //Pulgar
 			}
 
 			HAL_ADC_Stop(&hadc1);
 
 
 
-			if(RUNNING_O == Flag_SSD_State){
+			if(RUNNING_O == Flag_SSD_State)
+			{
 				SSD1306_GotoXY(0, 30);
 				SSD1306_Puts("Cierra la", &Font_7x10, 1);
 				SSD1306_GotoXY(0, 50);
@@ -891,7 +916,8 @@ void Inicializacion(void *argument)
 				SSD1306_UpdateScreen();
 			}
 
-			if(RUNNING_L == Flag_SSD_State){
+			if(RUNNING_L == Flag_SSD_State)
+			{
 				//abre la mano 2 segundos
 				//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
@@ -905,35 +931,77 @@ void Inicializacion(void *argument)
 
 			HAL_ADC_Start(&hadc1);
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_min[0] = HAL_ADC_GetValue(&hadc1);
-			}
-
-			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_min[1] = HAL_ADC_GetValue(&hadc1);
-			}
-
-			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
+			if(status == HAL_OK)
+			{
+#ifdef Medio
 				analog_min[2] = HAL_ADC_GetValue(&hadc1);
+#endif //Medio
 			}
 
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
-				analog_min[3] = HAL_ADC_GetValue(&hadc1);
+			if(status == HAL_OK)
+			{
+#ifdef Indice
+				analog_min[1] = HAL_ADC_GetValue(&hadc1);
+#endif //Indice
 			}
 
 			status = HAL_ADC_PollForConversion(&hadc1, 1);
-			if(status == HAL_OK){
+			if(status == HAL_OK)
+			{
+#ifdef Menique
 				analog_min[4] = HAL_ADC_GetValue(&hadc1);
+#endif //Menique
+
+			}
+
+			status = HAL_ADC_PollForConversion(&hadc1, 1);
+			if(status == HAL_OK)
+			{
+#ifdef Anular
+				analog_min[3] = HAL_ADC_GetValue(&hadc1);
+#endif //Anular
+			}
+
+			status = HAL_ADC_PollForConversion(&hadc1, 1);
+			if(status == HAL_OK)
+			{
+#ifdef Pulgar
+				analog_min[0] = HAL_ADC_GetValue(&hadc1);
+#endif //Pulgar
 			}
 
 			HAL_ADC_Stop(&hadc1);
-
-			if(analog_max[1] > analog_min[1]
-			&& analog_max[2] > analog_min[2]
-			&& analog_max[3] > analog_min[3]){
+			if(
+#ifdef Pulgar
+			   analog_max[0] > analog_min[0]
+#endif //Pulgar
+#if defined(Pulgar) && (defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique))
+				&&
+#endif
+#ifdef Indice
+			   analog_max[1] > analog_min[1]
+#endif //Indice
+#if defined(Indice) && (defined(Medio)||defined(Anular)||defined(Menique))
+				&&
+#endif
+#ifdef Medio
+			   analog_max[2] > analog_min[2]
+#endif //Medio
+#if defined(Medio) && (defined(Anular)||defined(Menique))
+				&&
+#endif
+#ifdef Anular
+			   analog_max[3] > analog_min[3]
+#endif //Anular
+#if defined(Anular) && defined(Menique)
+				&&
+#endif
+#ifdef Menique
+			   analog_max[4] > analog_min[4]
+#endif //Menique
+												)
+			{
 
 				osDelay(2000);
 
@@ -951,7 +1019,8 @@ void Inicializacion(void *argument)
 
 					Flag_SSD_State = OLED_IS_AVAILABLE;
 				}
-				else if(RUNNING_L == Flag_SSD_State){
+				else if(RUNNING_L == Flag_SSD_State)
+				{
 
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 					Flag_SSD_State = INIT_WITH_LED;
@@ -960,11 +1029,13 @@ void Inicializacion(void *argument)
 				xEventGroupClearBits(FlagHandle, 1);
 				xEventGroupSetBits(FlagHandle, 2); //envio de datos
 			}
-			else{
+			else
+			{
 				//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
 				xEventGroupClearBits(FlagHandle, 1);
-				if(RUNNING_O == Flag_SSD_State){
+				if(RUNNING_O == Flag_SSD_State)
+				{
 					SSD1306_Clear();
 
 					SSD1306_GotoXY(0, 0);
@@ -993,7 +1064,8 @@ void Inicializacion(void *argument)
 					Flag_SSD_State = OLED_IS_AVAILABLE;
 				}
 
-				else if(RUNNING_L == Flag_SSD_State){
+				else if(RUNNING_L == Flag_SSD_State)
+				{
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 					Flag_SSD_State = INIT_WITH_LED;
 				}
@@ -1027,39 +1099,55 @@ void AnalogRead(void *argument)
   {
 	  xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 
-	  if(OLED_IS_AVAILABLE == Flag_SSD_State){
+	  if(OLED_IS_AVAILABLE == Flag_SSD_State)
+	  {
 		  SSD1306_GotoXY(0, 0);
 		  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
 	  }
-	  else if(INIT_WITH_LED == Flag_SSD_State){
+	  else if(INIT_WITH_LED == Flag_SSD_State)
+	  {
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 	  }
 
 	  HAL_ADC_Start(&hadc1);
 		 status = HAL_ADC_PollForConversion(&hadc1, 5);
-		 if(status == HAL_OK){
-			 datos[0] = HAL_ADC_GetValue(&hadc1);
+		 if(status == HAL_OK)
+		 {
+#ifdef Medio
+			 datos[2] = HAL_ADC_GetValue(&hadc1);
+#endif //Medio
 		 }
 
 		 status = HAL_ADC_PollForConversion(&hadc1, 5);
-		 if(status == HAL_OK){
+		 if(status == HAL_OK)
+		 {
+#ifdef Indice
 			 datos[1] = HAL_ADC_GetValue(&hadc1);
-		 }
-
-
-		status = HAL_ADC_PollForConversion(&hadc1, 5);
-		 if(status == HAL_OK){
-			 datos[2] = HAL_ADC_GetValue(&hadc1);
+#endif //Indice
 		 }
 
 		status = HAL_ADC_PollForConversion(&hadc1, 5);
-		 if(status == HAL_OK){
-			 datos[3] = HAL_ADC_GetValue(&hadc1);
-		 }
-
-		status = HAL_ADC_PollForConversion(&hadc1, 5);
-		 if(status == HAL_OK){
+		 if(status == HAL_OK)
+		 {
+#ifdef Menique
 			 datos[4] = HAL_ADC_GetValue(&hadc1);
+#endif //Menique
+		 }
+
+		status = HAL_ADC_PollForConversion(&hadc1, 5);
+		 if(status == HAL_OK)
+		 {
+#ifdef Anular
+			 datos[3] = HAL_ADC_GetValue(&hadc1);
+#endif //Anular
+		 }
+
+		status = HAL_ADC_PollForConversion(&hadc1, 5);
+		 if(status == HAL_OK)
+		 {
+#ifdef Pulgar
+			 datos[0] = HAL_ADC_GetValue(&hadc1);
+#endif //Pulgar
 		 }
 
 	 HAL_ADC_Stop(&hadc1);
@@ -1068,7 +1156,8 @@ void AnalogRead(void *argument)
 	 //110 abierto, 50 cerrao
 	 //tercer servo, 150 cerrao, 50 abierto
 
-	 for(int k = 0; k<5; k++){
+	 for(int k = 0; k<5; k++)
+	 {
 		 if(datos[k] > analog_max[k]){
 			 datos[k] = analog_max[k];
 		 }
@@ -1076,7 +1165,7 @@ void AnalogRead(void *argument)
 			datos[k] = analog_min[k];
 		 }
 
-		 datos_f[k] = 0.3*datos[k] + 0.7*datos_f[k];
+		 datos_f[k] = 0.3*datos[k] + 0.7*datos_f[k]; //filter
 
 		 if(0 == k){
 			 grados_pack[k] = 110-((datos_f[k]-analog_min[k])*(110-50))/(analog_max[k]-analog_min[k]+1); //el + 1 es para evitar dividir entre 0 en el caso de que algun dedo no funcione
@@ -1101,12 +1190,21 @@ void AnalogRead(void *argument)
 		 }
 	 }
 
+#ifdef Pulgar
 	 lectura.Analog_pulgar = grados_pack[0];
+#endif //Pulgar
+#ifdef Indice
 	 lectura.Analog_indice = grados_pack[1];
+#endif //Indice
+#ifdef Medio
 	 lectura.Analog_corazon = grados_pack[2];
+#endif //Medio
+#ifdef Anular
 	 lectura.Analog_anular = grados_pack[3];
+#endif //Anular
+#ifdef Menique
 	 lectura.Analog_menique = grados_pack[4];
-
+#endif //Menique
 	 osMessageQueuePut(Queue1Handle, &lectura, 0, 0);
 
 	 HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
@@ -1138,10 +1236,12 @@ void AnalogRead(void *argument)
 void Gyro(void *argument)
 {
   /* USER CODE BEGIN Gyro */
-	struct Datos_Gyro Inclinacion;
+	//struct Datos_Gyro Inclinacion;
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
 	float AnguloX, AnguloY;
+
+	MPU6050_Init(hi2c1);
 
 	Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 	HAL_StatusTypeDef Flag_MPU6050;
@@ -1150,7 +1250,8 @@ void Gyro(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  switch(Flag_Gyro){
+#ifdef Gyro
+	  /*switch(Flag_Gyro){
 	  case SEARCHING_GYRO_I2C_DEVICE:
 		  Flag_MPU6050 = HAL_I2C_IsDeviceReady(&hi2c1, MPU6050_ADDR, 1, 1000);
 		  if(HAL_OK == Flag_MPU6050){
@@ -1172,10 +1273,10 @@ void Gyro(void *argument)
 	  case RUNNING:
 		  //nothing to do here
 		  break;
-	  }
+	  }*/
 
-	  if(RUNNING == Flag_Gyro){
-		xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+	 // if(RUNNING == Flag_Gyro){
+		//xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 
 		datosG = MPU6050_Read_Gyro(hi2c1);
 		datosA = MPU6050_Read_Accel(hi2c1);
@@ -1190,8 +1291,8 @@ void Gyro(void *argument)
 		Inclinacion.AnguloY = (uint8_t)AnguloY;
 
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
-	  }
-	  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro){
+	 // }
+	/*  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro){
 
 		  //si el gyro no esta activo se queda estatico en una posicion
 		  //averiguar si son esos los grados
@@ -1199,8 +1300,9 @@ void Gyro(void *argument)
 		Inclinacion.AnguloY = 90;
 
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
-	  }
+	  }*/
 
+#endif //Gyro
     osDelay(20);
   }
   /* USER CODE END Gyro */
