@@ -28,8 +28,11 @@
 #include "app_common_typedef.h"
 #include "MPU6050.h"
 
-#define Indice;
+//#define Pulgar;
+//#define Indice;
+#define Medio;
 #define Anular;
+//#define Menique;
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -723,7 +726,7 @@ void Inicializacion(void *argument)
 	  switch(Flag_SSD_State)
 	  {
 	  case WAIT_TIMER_TO_BE_READY:
-		  if(30000 < TickGet)
+		  if(1000 < TickGet) //before 30000
 		  {
 			  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE ; //waiting for timer to be established
 		  }
@@ -776,11 +779,15 @@ void Inicializacion(void *argument)
 	  case INIT_WITH_LED:
 		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
 		  xEventGroupClearBits(FlagHandle, 2);
-		  Flag_SSD_State = RUNNING_L;
 		  break;
 	  case RUNNING_O:
+		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
+		  Flag_SSD_State = OLED_IS_AVAILABLE;
+		  break;
 	  case RUNNING_L:
-		  //nothing to do here
+		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
+		  Flag_SSD_State = INIT_WITH_LED;
+
 		  break;
 	  }
 
@@ -1005,7 +1012,8 @@ void Inicializacion(void *argument)
 
 				osDelay(2000);
 
-				if(RUNNING_O == Flag_SSD_State){
+				if(RUNNING_O == Flag_SSD_State)
+				{
 					SSD1306_Clear();
 
 					SSD1306_GotoXY(0, 0);
@@ -1016,14 +1024,10 @@ void Inicializacion(void *argument)
 					SSD1306_GotoXY(0, 50);
 					SSD1306_Puts("Correcta", &Font_7x10, 1);
 					SSD1306_UpdateScreen();
-
-					Flag_SSD_State = OLED_IS_AVAILABLE;
 				}
 				else if(RUNNING_L == Flag_SSD_State)
 				{
-
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-					Flag_SSD_State = INIT_WITH_LED;
 				}
 				osDelay(1000);
 				xEventGroupClearBits(FlagHandle, 1);
@@ -1060,14 +1064,11 @@ void Inicializacion(void *argument)
 					SSD1306_Puts("!!", &Font_11x18, 1);
 
 					SSD1306_UpdateScreen();
-
-					Flag_SSD_State = OLED_IS_AVAILABLE;
 				}
 
 				else if(RUNNING_L == Flag_SSD_State)
 				{
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-					Flag_SSD_State = INIT_WITH_LED;
 				}
 			}
 		}
@@ -1099,14 +1100,25 @@ void AnalogRead(void *argument)
   {
 	  xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 
-	  if(OLED_IS_AVAILABLE == Flag_SSD_State)
+	  if(RUNNING_O == Flag_SSD_State)
 	  {
 		  SSD1306_GotoXY(0, 0);
 		  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
+
+		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
+		  SSD1306_DrawBitmap(0, 20, Carga[i], 128, 45, 1);
+
+		  SSD1306_UpdateScreen();
+		  i++;
+
+		  if(i == 12){
+			  i = 0;
+		 }
 	  }
-	  else if(INIT_WITH_LED == Flag_SSD_State)
+	  else if(RUNNING_L == Flag_SSD_State)
 	  {
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+		  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
 	  }
 
 	  HAL_ADC_Start(&hadc1);
@@ -1206,20 +1218,6 @@ void AnalogRead(void *argument)
 	 lectura.Analog_menique = grados_pack[4];
 #endif //Menique
 	 osMessageQueuePut(Queue1Handle, &lectura, 0, 0);
-
-	 HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
-
-	 /* SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
-	  SSD1306_DrawBitmap(0, 20, Carga[i], 128, 45, 1);
-
-	  SSD1306_UpdateScreen();*/
-
-	  i++;
-
-	  if(i == 12){
-		  i = 0;
-	  }
-
 
     osDelay(20);
   }
