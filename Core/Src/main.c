@@ -28,11 +28,15 @@
 #include "app_common_typedef.h"
 #include "MPU6050.h"
 
-//#define Pulgar;
-//#define Indice;
-#define Medio;
-#define Anular;
-//#define Menique;
+//#define Pulgar
+#define Indice
+#define Medio
+#define Anular
+//#define Menique
+
+
+//#define Gyro
+//#define Zigbee
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -136,64 +140,15 @@ float dt = 0;
 extern uint32_t TickGet;
 
 Init_State Flag_SSD_State = WAIT_TIMER_TO_BE_READY;
+uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
+uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 
 //END GLOBAL VARIABLES
 
 
 //DEBUG VARIABLES HERE
-uint32_t datos[5];
-uint32_t datos_f[5] = {0,0,0,0,0};
-uint32_t grados_pack[5]={0,0,0,0,0};
-//uint32_t datos_f[5] = {0,0,0,0,0};
-//uint8_t grados_pack[5]={0,0,0,0,0};
-uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
-uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 struct Datos_Gyro Inclinacion;
-
-//float AnguloX, AnguloY;
-
-/*int16_t Gyro_X_RAW = 0;
-int16_t Gyro_Y_RAW = 0;
-int16_t Gyro_Z_RAW = 0;*/
-/*int16_t Accel_X_RAW = 0;
-int16_t Accel_Y_RAW = 0;
-int16_t Accel_Z_RAW = 0;*/
-//END DEBU VARIABLES
-
-//---------------------------------------------------------------------
-
-
-//extern float count_gyro;
-//float Gx, Gy, Gz, Ax, Ay;
-
-/*struct AccelFunction{
-	float Ax;
-	float Ay;
-};
-
-struct GyroFunction{
-	float Gx;
-	float Gy;
-	float Gz;
-};*/
-
-
-
-/*struct Datos_Analogicos
-{
-	uint8_t Analog_pulgar;
-	uint8_t Analog_indice;
-	uint8_t Analog_corazon;
-	uint8_t Analog_anular;
-	uint8_t Analog_menique;
-};
-
-struct Datos_Gyro
-{
-	uint8_t AnguloX;
-	uint8_t AnguloY;
-
-}; */
+uint8_t BufferTx[9];
 
 void MPU6050_Init (I2C_HandleTypeDef hi2c);
 struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef hi2c);
@@ -234,14 +189,10 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-  //HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED); //????
 
   HAL_TIM_Base_Start_IT(&htim6);
   HAL_TIM_Base_Start_IT(&htim7);
   __HAL_UART_ENABLE_IT(&huart1,UART_IT_TC);
-
-
-  //HAL_ADC_ConvCpltCallback(hadc)
 
 
   /* USER CODE END 2 */
@@ -692,12 +643,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-
-	if(GPIO_Pin == GPIO_PIN_0){
-		//estado = 1;
-		xEventGroupSetBitsFromISR(FlagHandle, 1, pdFALSE);
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == GPIO_PIN_0)
+	{
+		osEventFlagsSet(FlagHandle, 1U);
 	}
 }
 
@@ -714,8 +664,9 @@ void Inicializacion(void *argument)
 {
   /* USER CODE BEGIN 5 */
 	HAL_StatusTypeDef status;
-
 	HAL_StatusTypeDef Flag_SSD1306;
+
+	uint8_t Calibration_fail = 0;
 
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //PCB Led Off
@@ -735,11 +686,19 @@ void Inicializacion(void *argument)
 		  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 1000); //before to the 20000 ms timeout
 		  if(HAL_OK == Flag_SSD1306)
 		  {
-			  Flag_SSD_State = OLED_IS_AVAILABLE;	//i2c screen is abailable
+			  Flag_SSD_State = OLED_IS_AVAILABLE;	//i2c screen is available
 		  }
-		  else{
+		  else
+		  {
 			  Flag_SSD_State = OLED_IS_NOT_AVAILABLE; //i2c is not available
 		  }
+
+		  if(1U == Calibration_fail)
+		  {
+			  Calibration_fail = 0;
+		  }
+
+		  osEventFlagsClear(FlagHandle,3U); // Clear Flag 1 and 2
 		  break;
 	  case OLED_IS_AVAILABLE:					//init oled screen
 		  SSD1306_Init();
@@ -768,24 +727,32 @@ void Inicializacion(void *argument)
 		  SSD1306_Puts("calibrar", &Font_7x10, 1);
 		  SSD1306_UpdateScreen();
 
-		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
-		  xEventGroupClearBits(FlagHandle, 2);
-		  Flag_SSD_State = RUNNING_O;
+		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever); // wait Flag 1 from ISR
+		  Flag_SSD_State = CALIBRATION_OLED;
 		  break;
 	  case OLED_IS_NOT_AVAILABLE:
 		  Flag_SSD_State = INIT_WITH_LED;
 		  //initialitation by a led is available
 		  break;
+	  case CALIBRATION_OLED:
+		  osEventFlagsClear(FlagHandle,1U);
+		  Flag_SSD_State = RUNNING_O;
+		  break;
 	  case INIT_WITH_LED:
-		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
-		  xEventGroupClearBits(FlagHandle, 2);
+		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
+		  osEventFlagsClear(FlagHandle,2U);
 		  break;
 	  case RUNNING_O:
-		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
-		  Flag_SSD_State = OLED_IS_AVAILABLE;
+		  if(0U == Calibration_fail)
+		  {
+			  osEventFlagsSet(FlagHandle,2U);
+		  }
+		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
+		  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE;
 		  break;
 	  case RUNNING_L:
-		  xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
+		 // xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
+		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
 		  Flag_SSD_State = INIT_WITH_LED;
 
 		  break;
@@ -795,9 +762,9 @@ void Inicializacion(void *argument)
 
 	  //only if init can be done by one of two's options, the FW can be run
 
-	  if((RUNNING_O == Flag_SSD_State) || (RUNNING_L == Flag_SSD_State))
+	  if((CALIBRATION_OLED == Flag_SSD_State) || (RUNNING_L == Flag_SSD_State))
 	  {
-		  if(RUNNING_O == Flag_SSD_State)
+		  if(CALIBRATION_OLED == Flag_SSD_State)
 		  {
 			  SSD1306_Clear();
 
@@ -892,7 +859,7 @@ void Inicializacion(void *argument)
 
 
 
-			if(RUNNING_O == Flag_SSD_State)
+			if(CALIBRATION_OLED == Flag_SSD_State)
 			{
 				SSD1306_GotoXY(0, 30);
 				SSD1306_Puts("Cierra la", &Font_7x10, 1);
@@ -1012,7 +979,7 @@ void Inicializacion(void *argument)
 
 				osDelay(2000);
 
-				if(RUNNING_O == Flag_SSD_State)
+				if(CALIBRATION_OLED == Flag_SSD_State)
 				{
 					SSD1306_Clear();
 
@@ -1030,15 +997,12 @@ void Inicializacion(void *argument)
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 				}
 				osDelay(1000);
-				xEventGroupClearBits(FlagHandle, 1);
-				xEventGroupSetBits(FlagHandle, 2); //envio de datos
+				//xEventGroupClearBits(FlagHandle, 1);
+				//xEventGroupSetBits(FlagHandle, 2); //envio de datos
 			}
 			else
 			{
-				//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-
-				xEventGroupClearBits(FlagHandle, 1);
-				if(RUNNING_O == Flag_SSD_State)
+				if(CALIBRATION_OLED == Flag_SSD_State)
 				{
 					SSD1306_Clear();
 
@@ -1070,6 +1034,8 @@ void Inicializacion(void *argument)
 				{
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 				}
+
+				Calibration_fail = 1;
 			}
 		}
 	 	osDelay(10);
@@ -1092,13 +1058,14 @@ void AnalogRead(void *argument)
 	int i = 0;
 	//int j = 0;
 
-  // uint32_t datos[5];
-   //uint32_t datos_f[5] = {0,0,0,0,0};
-   //uint8_t grados_pack[5]={0,0,0,0,0};
+	uint32_t datos[5];
+	uint32_t datos_f[5] = {0,0,0,0,0};
+	uint8_t grados_pack[5]={0,0,0,0,0};
   /* Infinite loop */
   for(;;)
   {
-	  xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+	  //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+	  osEventFlagsWait(FlagHandle, 2U, osFlagsNoClear, osWaitForever);
 
 	  if(RUNNING_O == Flag_SSD_State)
 	  {
@@ -1217,9 +1184,14 @@ void AnalogRead(void *argument)
 #ifdef Menique
 	 lectura.Analog_menique = grados_pack[4];
 #endif //Menique
-	 osMessageQueuePut(Queue1Handle, &lectura, 0, 0);
 
-    osDelay(20);
+#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+	 osMessageQueuePut(Queue1Handle, &lectura, 0, 0);
+#endif //defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+
+	 osEventFlagsClear(FlagHandle,2U);
+	 osEventFlagsSet(FlagHandle,4U);
+	 osDelay(20);
   }
   /* USER CODE END AnalogRead */
 }
@@ -1234,20 +1206,22 @@ void AnalogRead(void *argument)
 void Gyro(void *argument)
 {
   /* USER CODE BEGIN Gyro */
+#ifdef Gyro
 	//struct Datos_Gyro Inclinacion;
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
 	float AnguloX, AnguloY;
-
-	MPU6050_Init(hi2c1);
-
 	Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 	HAL_StatusTypeDef Flag_MPU6050;
+#endif //Gyro
+	MPU6050_Init(hi2c1);
+
 
 
   /* Infinite loop */
   for(;;)
   {
+	  osEventFlagsWait(FlagHandle, 4U, osFlagsNoClear, osWaitForever);
 #ifdef Gyro
 	  /*switch(Flag_Gyro){
 	  case SEARCHING_GYRO_I2C_DEVICE:
@@ -1301,6 +1275,8 @@ void Gyro(void *argument)
 	  }*/
 
 #endif //Gyro
+	osEventFlagsClear(FlagHandle,4U);
+    osEventFlagsSet(FlagHandle,8U);
     osDelay(20);
   }
   /* USER CODE END Gyro */
@@ -1316,36 +1292,69 @@ void Gyro(void *argument)
 void EnvioDatos(void *argument)
 {
   /* USER CODE BEGIN EnvioDatos */
+#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	osStatus_t val1;
-	osStatus_t val2;
-
 	struct Datos_Analogicos buff1;
+#endif //#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+
+#ifdef Gyro
+	osStatus_t val2;
 	struct Datos_Gyro buff2;
-	uint8_t BufferTx[9];
+#endif //Gyro
+
+	//uint8_t BufferTx[9];
   /* Infinite loop */
   for(;;)
   {
-    xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_1);
+    //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+    osEventFlagsWait(FlagHandle, 8U, osFlagsNoClear, osWaitForever);
 
+#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	val1 = osMessageQueueGet(Queue1Handle, &buff1, NULL, 0);
+#endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+#ifdef Gyro
 	val2 = osMessageQueueGet(Queue2Handle, &buff2, NULL, 0);
+#endif //Gyro
 
-	if((val1 == osOK)&&(val2 == osOK)){
+	if(
+#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+	   (val1 == osOK)
+#endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+#if (defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)) && defined(Gyro)
+	   &&
+#endif
+#ifdef Gyro
+	   (val2 == osOK)
+#endif //Gyro
+	   	   	   	     )
+	{
 
 		  BufferTx[0] = 200;
+#ifdef Pulgar
 		  BufferTx[1] = buff1.Analog_pulgar;
+#endif //Puglar
+#ifdef Indice
 		  BufferTx[2] = buff1.Analog_indice;
+#endif //Indice
+#ifdef Medio
 		  BufferTx[3] = buff1.Analog_corazon;
+#endif //Medio
+#ifdef Anular
 		  BufferTx[4] = buff1.Analog_anular;
+#endif //Anular
+#ifdef Menique
 		  BufferTx[5] = buff1.Analog_menique;
+#endif //Menique
 		  //BufferTx[6] = buff2.AnguloX;
-		 // BufferTx[7] = buff2.AnguloY;
-		 // BufferTx[8] = 0xA;
+		  //BufferTx[7] = buff2.AnguloY;
+		  BufferTx[8] = 0xA;
 
-		  //HAL_UART_Transmit_IT(&huart1, BufferTx, 9);
+#ifdef Zigbee
+		  HAL_UART_Transmit_IT(&huart1, BufferTx, 9);
+#endif //Zigbee
 	}
-
+	osEventFlagsClear(FlagHandle,8U);
+    osEventFlagsSet(FlagHandle,2U);
     osDelay(20);
   }
   /* USER CODE END EnvioDatos */
