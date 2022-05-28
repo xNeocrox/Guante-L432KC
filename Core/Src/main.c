@@ -32,7 +32,7 @@
 #define Indice
 #define Medio
 #define Anular
-//#define Menique
+#define Menique
 
 
 //#define Gyro
@@ -668,8 +668,8 @@ void Inicializacion(void *argument)
 
 	uint8_t Calibration_fail = 0;
 
-	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //PCB Led Off
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); //PCB Led Green
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //PCB Led Red
   /* Infinite loop */
   for(;;)
   {
@@ -697,6 +697,9 @@ void Inicializacion(void *argument)
 		  {
 			  Calibration_fail = 0;
 		  }
+
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
 		  osEventFlagsClear(FlagHandle,3U); // Clear Flag 1 and 2
 		  break;
@@ -731,16 +734,22 @@ void Inicializacion(void *argument)
 		  Flag_SSD_State = CALIBRATION_OLED;
 		  break;
 	  case OLED_IS_NOT_AVAILABLE:
-		  Flag_SSD_State = INIT_WITH_LED;
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+		  osEventFlagsClear(FlagHandle,2U);
 		  //initialitation by a led is available
+		  Flag_SSD_State = INIT_WITH_LED;
 		  break;
 	  case CALIBRATION_OLED:
 		  osEventFlagsClear(FlagHandle,1U);
 		  Flag_SSD_State = RUNNING_O;
 		  break;
 	  case INIT_WITH_LED:
-		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
-		  osEventFlagsClear(FlagHandle,2U);
+		  osEventFlagsClear(FlagHandle,1U);
+		  Flag_SSD_State = RUNNING_L;
 		  break;
 	  case RUNNING_O:
 		  if(0U == Calibration_fail)
@@ -751,10 +760,12 @@ void Inicializacion(void *argument)
 		  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE;
 		  break;
 	  case RUNNING_L:
-		 // xEventGroupWaitBits(FlagHandle,1,pdFALSE,pdFALSE,portMAX_DELAY);
+		  if(0U == Calibration_fail)
+		  {
+			  osEventFlagsSet(FlagHandle,2U);
+		  }
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
-		  Flag_SSD_State = INIT_WITH_LED;
-
+		  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE;
 		  break;
 	  }
 
@@ -762,7 +773,7 @@ void Inicializacion(void *argument)
 
 	  //only if init can be done by one of two's options, the FW can be run
 
-	  if((CALIBRATION_OLED == Flag_SSD_State) || (RUNNING_L == Flag_SSD_State))
+	  if((CALIBRATION_OLED == Flag_SSD_State) || (INIT_WITH_LED == Flag_SSD_State))
 	  {
 		  if(CALIBRATION_OLED == Flag_SSD_State)
 		  {
@@ -800,14 +811,13 @@ void Inicializacion(void *argument)
 			  SSD1306_UpdateScreen();
 		  }
 
-		  if(RUNNING_L == Flag_SSD_State)
+		  if(INIT_WITH_LED == Flag_SSD_State)
 		  {
-			  //open hand 2 seconds
-			  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+			  // Open the hand 3 seconds
 
 			  for(int i = 0; i < 6; i++)
 			  {
-				  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
+				  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8); //Led Red
 				  osDelay(500);
 			  }
 
@@ -890,17 +900,16 @@ void Inicializacion(void *argument)
 				SSD1306_UpdateScreen();
 			}
 
-			if(RUNNING_L == Flag_SSD_State)
+			if(INIT_WITH_LED == Flag_SSD_State)
 			{
-				//abre la mano 2 segundos
-				//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+				//Close the hand 3 seconds
 
-				for(int i = 0; i < 12; i++){
-				  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
-				  osDelay(250);
+				for(int i = 0; i < 6; i++){
+				  HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_1); //Led Green
+				  osDelay(500);
 				}
 
-				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 			}
 
 			HAL_ADC_Start(&hadc1);
@@ -992,9 +1001,10 @@ void Inicializacion(void *argument)
 					SSD1306_Puts("Correcta", &Font_7x10, 1);
 					SSD1306_UpdateScreen();
 				}
-				else if(RUNNING_L == Flag_SSD_State)
+				else if(INIT_WITH_LED == Flag_SSD_State)
 				{
-					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+					osDelay(1000);
 				}
 				osDelay(1000);
 				//xEventGroupClearBits(FlagHandle, 1);
@@ -1030,9 +1040,11 @@ void Inicializacion(void *argument)
 					SSD1306_UpdateScreen();
 				}
 
-				else if(RUNNING_L == Flag_SSD_State)
+				else if(INIT_WITH_LED == Flag_SSD_State)
 				{
 					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+					osDelay(2000);
+					HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 				}
 
 				Calibration_fail = 1;
@@ -1084,8 +1096,7 @@ void AnalogRead(void *argument)
 	  }
 	  else if(RUNNING_L == Flag_SSD_State)
 	  {
-		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
-		  HAL_GPIO_TogglePin(GPIOA,GPIO_PIN_8);
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); //Led Green
 	  }
 
 	  HAL_ADC_Start(&hadc1);
