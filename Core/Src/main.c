@@ -28,14 +28,16 @@
 #include "app_common_typedef.h"
 #include "MPU6050.h"
 
+#define RESCALE_GYRO 90
+
 //#define Pulgar
 #define Indice
-#define Medio
-#define Anular
-#define Menique
+//#define Medio
+//#define Anular
+//#define Menique
 
 
-//#define Gyro
+#define Gyroscope
 //#define Zigbee
 
 /* Private includes ----------------------------------------------------------*/
@@ -147,7 +149,6 @@ uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 
 
 //DEBUG VARIABLES HERE
-struct Datos_Gyro Inclinacion;
 uint8_t BufferTx[9];
 
 void MPU6050_Init (I2C_HandleTypeDef hi2c);
@@ -1050,6 +1051,7 @@ void Inicializacion(void *argument)
 				Calibration_fail = 1;
 			}
 		}
+
 	 	osDelay(10);
   }
   /* USER CODE END 5 */
@@ -1202,6 +1204,7 @@ void AnalogRead(void *argument)
 
 	 osEventFlagsClear(FlagHandle,2U);
 	 osEventFlagsSet(FlagHandle,4U);
+
 	 osDelay(20);
   }
   /* USER CODE END AnalogRead */
@@ -1217,49 +1220,48 @@ void AnalogRead(void *argument)
 void Gyro(void *argument)
 {
   /* USER CODE BEGIN Gyro */
-#ifdef Gyro
-	//struct Datos_Gyro Inclinacion;
+#ifdef Gyroscope
+	struct Datos_Gyro Inclinacion;
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
 	float AnguloX, AnguloY;
 	Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 	HAL_StatusTypeDef Flag_MPU6050;
-#endif //Gyro
-	MPU6050_Init(hi2c1);
-
-
+#endif //Gyroscope
 
   /* Infinite loop */
   for(;;)
   {
 	  osEventFlagsWait(FlagHandle, 4U, osFlagsNoClear, osWaitForever);
-#ifdef Gyro
-	  /*switch(Flag_Gyro){
+#ifdef Gyroscope
+	  switch(Flag_Gyro)
+	  {
 	  case SEARCHING_GYRO_I2C_DEVICE:
 		  Flag_MPU6050 = HAL_I2C_IsDeviceReady(&hi2c1, MPU6050_ADDR, 1, 1000);
-		  if(HAL_OK == Flag_MPU6050){
+		  if(HAL_OK == Flag_MPU6050)
+		  {
 			  Flag_Gyro = GYRO_IS_AVAILABLE;
 		  }
-		  else{
+		  else
+		  {
 			  Flag_Gyro = GYRO_IS_NOT_AVAILABLE;
 		  }
 		  break;
 
 	  case GYRO_IS_AVAILABLE:
 		  MPU6050_Init(hi2c1);
-		  Flag_Gyro = RUNNING;
+		  Flag_Gyro = RUNNING_GYRO;
 		  break;
 
 	  case GYRO_IS_NOT_AVAILABLE:
 		  //nothing to do here
-		  break;
-	  case RUNNING:
+	  case RUNNING_GYRO:
 		  //nothing to do here
 		  break;
-	  }*/
+	  }
 
-	 // if(RUNNING == Flag_Gyro){
-		//xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
+	  if(RUNNING_GYRO == Flag_Gyro)
+	  {
 
 		datosG = MPU6050_Read_Gyro(hi2c1);
 		datosA = MPU6050_Read_Accel(hi2c1);
@@ -1267,27 +1269,27 @@ void Gyro(void *argument)
 		dt = count_gyro/1000;
 		count_gyro = 0;
 
+		//swaped scales from -90º/90º to 0º/180º
 		AnguloX = 0.98*(AnguloX + datosG.Gx*dt) + 0.02*datosA.Ax;
 		AnguloY = 0.98*(AnguloY + datosG.Gy*dt) + 0.02*datosA.Ay;
 
-		Inclinacion.AnguloX = (uint8_t)AnguloX;
-		Inclinacion.AnguloY = (uint8_t)AnguloY;
+		Inclinacion.AnguloX = (uint8_t)(AnguloX + 90);
+		Inclinacion.AnguloY = (uint8_t)(AnguloY + 90);
 
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
-	 // }
-	/*  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro){
-
-		  //si el gyro no esta activo se queda estatico en una posicion
-		  //averiguar si son esos los grados
+	  }
+	  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro)
+	  {
+		//if gyro doesn't work, angles set to 90º
 		Inclinacion.AnguloX = 90;
 		Inclinacion.AnguloY = 90;
-
+	  }
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
-	  }*/
 
-#endif //Gyro
+#endif //Gyroscope
 	osEventFlagsClear(FlagHandle,4U);
     osEventFlagsSet(FlagHandle,8U);
+
     osDelay(20);
   }
   /* USER CODE END Gyro */
@@ -1308,10 +1310,10 @@ void EnvioDatos(void *argument)
 	struct Datos_Analogicos buff1;
 #endif //#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 
-#ifdef Gyro
+#ifdef Gyroscope
 	osStatus_t val2;
 	struct Datos_Gyro buff2;
-#endif //Gyro
+#endif //Gyroscope
 
 	//uint8_t BufferTx[9];
   /* Infinite loop */
@@ -1323,20 +1325,20 @@ void EnvioDatos(void *argument)
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	val1 = osMessageQueueGet(Queue1Handle, &buff1, NULL, 0);
 #endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
-#ifdef Gyro
+#ifdef Gyroscope
 	val2 = osMessageQueueGet(Queue2Handle, &buff2, NULL, 0);
-#endif //Gyro
+#endif //Gyroscope
 
 	if(
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	   (val1 == osOK)
 #endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
-#if (defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)) && defined(Gyro)
+#if (defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)) && defined(Gyroscope)
 	   &&
 #endif
-#ifdef Gyro
+#ifdef Gyroscope
 	   (val2 == osOK)
-#endif //Gyro
+#endif //Gyroscope
 	   	   	   	     )
 	{
 
@@ -1356,8 +1358,12 @@ void EnvioDatos(void *argument)
 #ifdef Menique
 		  BufferTx[5] = buff1.Analog_menique;
 #endif //Menique
-		  //BufferTx[6] = buff2.AnguloX;
-		  //BufferTx[7] = buff2.AnguloY;
+
+#ifdef Gyroscope
+		  BufferTx[6] = buff2.AnguloX;
+		  BufferTx[7] = buff2.AnguloY;
+#endif //Gyroscope
+
 		  BufferTx[8] = 0xA;
 
 #ifdef Zigbee
@@ -1366,6 +1372,7 @@ void EnvioDatos(void *argument)
 	}
 	osEventFlagsClear(FlagHandle,8U);
     osEventFlagsSet(FlagHandle,2U);
+
     osDelay(20);
   }
   /* USER CODE END EnvioDatos */
