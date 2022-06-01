@@ -1271,6 +1271,24 @@ void Gyro(void *argument)
 		Inclinacion.AnguloX = (uint8_t)(AnguloX + 90);
 		Inclinacion.AnguloY = (uint8_t)(AnguloY + 90);
 
+		if(180 < Inclinacion.AnguloX)
+		{
+			Inclinacion.AnguloX = 180;
+		}
+		else if(0 > Inclinacion.AnguloX)
+		{
+			Inclinacion.AnguloX = 0;
+		}
+
+		if(180 < Inclinacion.AnguloY)
+		{
+			Inclinacion.AnguloY = 180;
+		}
+		else if(0 > Inclinacion.AnguloY)
+		{
+			Inclinacion.AnguloY = 0;
+		}
+
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
 	  }
 	  else if(RUNNING_WITHOUT_GYRO == Flag_Gyro)
