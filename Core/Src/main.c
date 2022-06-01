@@ -151,6 +151,7 @@ uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 
 //DEBUG VARIABLES HERE
 uint8_t BufferTx[9];
+float AnguloX, AnguloY;
 
 void MPU6050_Init (I2C_HandleTypeDef hi2c);
 struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef hi2c);
@@ -1218,7 +1219,7 @@ void Gyro(void *argument)
 	struct Datos_Gyro Inclinacion;
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
-	float AnguloX, AnguloY;
+	//float AnguloX, AnguloY;
 	HAL_StatusTypeDef Flag_MPU6050;
 #endif //Gyroscope
 
@@ -1318,8 +1319,6 @@ void Gyro(void *argument)
 void EnvioDatos(void *argument)
 {
   /* USER CODE BEGIN EnvioDatos */
-	int i = 0;
-
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	osStatus_t val1;
 	struct Datos_Analogicos buff1;
@@ -1374,15 +1373,67 @@ void EnvioDatos(void *argument)
 		  SSD1306_GotoXY(0, 0);
 		  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
 
-		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
-		  SSD1306_DrawBitmap(0, 20, Carga[i], 128, 45, 1);
+		  SSD1306_GotoXY(0, 20);
+		  SSD1306_Puts("P:", &Font_7x10, 1);
+		  SSD1306_GotoXY(15, 20);
+		  SSD1306_Putc(((uint8_t)(BufferTx[1]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(22, 20);
+		  SSD1306_Putc(((uint8_t)((BufferTx[1]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(29, 20);
+		  SSD1306_Putc(((uint8_t)(BufferTx[1]%10)+'0'), &Font_7x10, 1);
+
+		  SSD1306_GotoXY(0, 35);
+		  SSD1306_Puts("I:", &Font_7x10, 1);
+		  SSD1306_GotoXY(15, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[2]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(22, 35);
+		  SSD1306_Putc(((uint8_t)((BufferTx[2]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(29, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[2]%10)+'0'), &Font_7x10, 1);
+
+		  SSD1306_GotoXY(0, 50);
+		  SSD1306_Puts("C:", &Font_7x10, 1);
+		  SSD1306_GotoXY(15, 50);
+		  SSD1306_Putc(((uint8_t)(BufferTx[3]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(22, 50);
+		  SSD1306_Putc(((uint8_t)((BufferTx[3]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(29, 50);
+		  SSD1306_Putc(((uint8_t)(BufferTx[3]%10)+'0'), &Font_7x10, 1);
+
+		  SSD1306_GotoXY(46, 20);
+		  SSD1306_Puts("A:", &Font_7x10, 1);
+		  SSD1306_GotoXY(61, 20);
+		  SSD1306_Putc(((uint8_t)(BufferTx[4]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(68, 20);
+		  SSD1306_Putc(((uint8_t)((BufferTx[4]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(75, 20);
+		  SSD1306_Putc(((uint8_t)(BufferTx[4]%10)+'0'), &Font_7x10, 1);
+
+		  SSD1306_GotoXY(46, 35);
+		  SSD1306_Puts("M:", &Font_7x10, 1);
+		  SSD1306_GotoXY(61, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[5]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(68, 35);
+		  SSD1306_Putc(((uint8_t)((BufferTx[5]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(75, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[5]%10)+'0'), &Font_7x10, 1);
+
+		  SSD1306_GotoXY(92, 20);
+		  SSD1306_Puts("X-Y", &Font_7x10, 1);
+		  SSD1306_GotoXY(92, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[6]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(99, 35);
+		  SSD1306_Putc(((uint8_t)((BufferTx[6]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(106, 35);
+		  SSD1306_Putc(((uint8_t)(BufferTx[6]%10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(92, 50);
+		  SSD1306_Putc(((uint8_t)(BufferTx[7]/100)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(99, 50);
+		  SSD1306_Putc(((uint8_t)((BufferTx[7]%100)/10)+'0'), &Font_7x10, 1);
+		  SSD1306_GotoXY(106, 50);
+		  SSD1306_Putc(((uint8_t)(BufferTx[7]%10)+'0'), &Font_7x10, 1);
 
 		  SSD1306_UpdateScreen();
-		  i++;
-
-		  if(i == 12){
-			  i = 0;
-		 }
 	  }
 
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
