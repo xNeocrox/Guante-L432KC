@@ -140,6 +140,7 @@ void EnvioDatos(void *argument);
 float count_gyro = 0;
 float dt = 0;
 extern uint32_t TickGet;
+uint8_t ISR_cascade = 0;
 
 Init_State Flag_SSD_State = WAIT_TIMER_TO_BE_READY;
 Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
@@ -650,7 +651,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if(GPIO_Pin == GPIO_PIN_0)
 	{
-		osEventFlagsSet(FlagHandle, 1U);
+		if(0U == ISR_cascade)
+		{
+			osEventFlagsSet(FlagHandle, 1U);
+			ISR_cascade = 1;
+		}
 	}
 }
 
@@ -735,12 +740,14 @@ void Inicializacion(void *argument)
 		  SSD1306_Puts("calibrar", &Font_7x10, 1);
 		  SSD1306_UpdateScreen();
 
+		  ISR_cascade = 0;
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever); // wait Flag 1 from ISR
 		  Flag_SSD_State = CALIBRATION_OLED;
 		  break;
 	  case OLED_IS_NOT_AVAILABLE:
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+		  ISR_cascade = 0U;
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
@@ -761,6 +768,7 @@ void Inicializacion(void *argument)
 		  {
 			  osEventFlagsSet(FlagHandle,2U);
 		  }
+		  ISR_cascade = 0U;
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
 		  osEventFlagsClear(FlagHandle,2U);
 		  osEventFlagsClear(FlagHandle,4U);
@@ -773,6 +781,7 @@ void Inicializacion(void *argument)
 		  {
 			  osEventFlagsSet(FlagHandle,2U);
 		  }
+		  ISR_cascade = 0U;
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
 		  osEventFlagsClear(FlagHandle,2U);
 		  osEventFlagsClear(FlagHandle,4U);
