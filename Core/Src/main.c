@@ -142,6 +142,7 @@ float dt = 0;
 extern uint32_t TickGet;
 
 Init_State Flag_SSD_State = WAIT_TIMER_TO_BE_READY;
+Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
 uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 
@@ -684,6 +685,7 @@ void Inicializacion(void *argument)
 		  }
 		  break;
 	  case SEARCHING_OLED_I2C_DEVICE:
+		  Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 		  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 1000); //before to the 20000 ms timeout
 		  if(HAL_OK == Flag_SSD1306)
 		  {
@@ -702,7 +704,8 @@ void Inicializacion(void *argument)
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
-		  osEventFlagsClear(FlagHandle,3U); // Clear Flag 1 and 2
+		  osEventFlagsClear(FlagHandle,1U); // Clear Flag 1 and 2
+		  osEventFlagsClear(FlagHandle,2U); // Clear Flag 1 and 2
 		  break;
 	  case OLED_IS_AVAILABLE:					//init oled screen
 		  SSD1306_Init();
@@ -758,6 +761,10 @@ void Inicializacion(void *argument)
 			  osEventFlagsSet(FlagHandle,2U);
 		  }
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
+		  osEventFlagsClear(FlagHandle,2U);
+		  osEventFlagsClear(FlagHandle,4U);
+		  osEventFlagsClear(FlagHandle,8U);
+		  osDelay(200);
 		  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE;
 		  break;
 	  case RUNNING_L:
@@ -766,6 +773,10 @@ void Inicializacion(void *argument)
 			  osEventFlagsSet(FlagHandle,2U);
 		  }
 		  osEventFlagsWait(FlagHandle, 1U, osFlagsNoClear, osWaitForever);
+		  osEventFlagsClear(FlagHandle,2U);
+		  osEventFlagsClear(FlagHandle,4U);
+		  osEventFlagsClear(FlagHandle,8U);
+		  osDelay(200);
 		  Flag_SSD_State = SEARCHING_OLED_I2C_DEVICE;
 		  break;
 	  }
@@ -1001,6 +1012,7 @@ void Inicializacion(void *argument)
 					SSD1306_GotoXY(0, 50);
 					SSD1306_Puts("Correcta", &Font_7x10, 1);
 					SSD1306_UpdateScreen();
+					osDelay(2000);
 				}
 				else if(INIT_WITH_LED == Flag_SSD_State)
 				{
@@ -1069,8 +1081,6 @@ void AnalogRead(void *argument)
   /* USER CODE BEGIN AnalogRead */
 	HAL_StatusTypeDef status;
 	struct Datos_Analogicos lectura;
-	int i = 0;
-	//int j = 0;
 
 	uint32_t datos[5];
 	uint32_t datos_f[5] = {0,0,0,0,0};
@@ -1078,25 +1088,9 @@ void AnalogRead(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
 	  osEventFlagsWait(FlagHandle, 2U, osFlagsNoClear, osWaitForever);
 
-	  if(RUNNING_O == Flag_SSD_State)
-	  {
-		  SSD1306_GotoXY(0, 0);
-		  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
-
-		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
-		  SSD1306_DrawBitmap(0, 20, Carga[i], 128, 45, 1);
-
-		  SSD1306_UpdateScreen();
-		  i++;
-
-		  if(i == 12){
-			  i = 0;
-		 }
-	  }
-	  else if(RUNNING_L == Flag_SSD_State)
+	  if(RUNNING_L == Flag_SSD_State)
 	  {
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); //Led Green
 	  }
@@ -1225,7 +1219,6 @@ void Gyro(void *argument)
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
 	float AnguloX, AnguloY;
-	Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 	HAL_StatusTypeDef Flag_MPU6050;
 #endif //Gyroscope
 
@@ -1254,7 +1247,9 @@ void Gyro(void *argument)
 		  break;
 
 	  case GYRO_IS_NOT_AVAILABLE:
-		  //nothing to do here
+		  Flag_Gyro = RUNNING_WITHOUT_GYRO;
+		  break;
+	  case RUNNING_WITHOUT_GYRO:
 	  case RUNNING_GYRO:
 		  //nothing to do here
 		  break;
@@ -1278,7 +1273,7 @@ void Gyro(void *argument)
 
 		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
 	  }
-	  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro)
+	  else if(RUNNING_WITHOUT_GYRO == Flag_Gyro)
 	  {
 		//if gyro doesn't work, angles set to 90º
 		Inclinacion.AnguloX = 90;
@@ -1305,6 +1300,8 @@ void Gyro(void *argument)
 void EnvioDatos(void *argument)
 {
   /* USER CODE BEGIN EnvioDatos */
+	int i = 0;
+
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	osStatus_t val1;
 	struct Datos_Analogicos buff1;
@@ -1321,6 +1318,54 @@ void EnvioDatos(void *argument)
   {
     //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
     osEventFlagsWait(FlagHandle, 8U, osFlagsNoClear, osWaitForever);
+
+    //DISPLAY
+	  if(GYRO_IS_AVAILABLE == Flag_Gyro)
+	  {
+		  SSD1306_Clear();
+
+		  SSD1306_GotoXY(0, 0);
+		  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+		  SSD1306_GotoXY(0, 30);
+		  SSD1306_Puts("GYRO", &Font_7x10, 1);
+		  SSD1306_GotoXY(0, 50);
+		  SSD1306_Puts("DISPONIBLE", &Font_7x10, 1);
+		  SSD1306_UpdateScreen();
+		  osDelay(3000);
+
+		  SSD1306_Clear();
+	  }
+	  else if(GYRO_IS_NOT_AVAILABLE == Flag_Gyro)
+	  {
+		  SSD1306_Clear();
+
+		  SSD1306_GotoXY(0, 0);
+		  SSD1306_Puts("CALIBRACION", &Font_11x18, 1);
+		  SSD1306_GotoXY(0, 30);
+		  SSD1306_Puts("GYRO", &Font_7x10, 1);
+		  SSD1306_GotoXY(0, 50);
+		  SSD1306_Puts("NO DISPONIBLE", &Font_7x10, 1);
+		  SSD1306_UpdateScreen();
+		  osDelay(3000);
+
+		  SSD1306_Clear();
+	  }
+
+	  if(RUNNING_O == Flag_SSD_State)
+	  {
+		  SSD1306_GotoXY(0, 0);
+		  SSD1306_Puts("FUNCIONANDO", &Font_11x18, 1);
+
+		  SSD1306_DrawFilledRectangle(0, 20, 128, 45, 0x00);
+		  SSD1306_DrawBitmap(0, 20, Carga[i], 128, 45, 1);
+
+		  SSD1306_UpdateScreen();
+		  i++;
+
+		  if(i == 12){
+			  i = 0;
+		 }
+	  }
 
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
 	val1 = osMessageQueueGet(Queue1Handle, &buff1, NULL, 0);
