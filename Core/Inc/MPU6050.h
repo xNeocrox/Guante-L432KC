@@ -30,9 +30,9 @@
 #define RAD_TO_DEG  57.295779
 
 //Function Here
-void MPU6050_Init (I2C_HandleTypeDef hi2c);
-struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef hi2c);
-struct AccelFunction MPU6050_Read_Accel (I2C_HandleTypeDef hi2c);
+void MPU6050_Init (I2C_HandleTypeDef *hi2c);
+struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef *hi2c);
+struct AccelFunction MPU6050_Read_Accel (I2C_HandleTypeDef *hi2c);
 
 
 #endif /* INC_MPU6050_H_ */

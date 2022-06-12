@@ -53,6 +53,11 @@ extern "C" {
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
+void MPU6050_Init (I2C_HandleTypeDef *hi2c);
+struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef *hi2c);
+struct AccelFunction MPU6050_Read_Accel (I2C_HandleTypeDef *hi2c);
+
+void ConvertData(uint8_t dato, char * datoAscii);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */

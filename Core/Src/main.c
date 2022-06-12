@@ -153,10 +153,8 @@ uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
 //DEBUG VARIABLES HERE
 uint8_t BufferTx[9];
 float AnguloX, AnguloY;
+struct Datos_Gyro Inclinacion;
 
-void MPU6050_Init (I2C_HandleTypeDef hi2c);
-struct GyroFunction MPU6050_Read_Gyro (I2C_HandleTypeDef hi2c);
-struct AccelFunction MPU6050_Read_Accel (I2C_HandleTypeDef hi2c);
 /* USER CODE END 0 */
 
 /**
@@ -268,6 +266,44 @@ int main(void)
   /* USER CODE END 3 */
 }
 
+void ConvertData(uint8_t dato, char * datoAscii)
+{
+    uint8_t numDig = log10 (dato) + 1;
+
+    char permut[3];
+    itoa(dato,permut,10);
+
+    if(2 == numDig)
+    {
+        *datoAscii = '0';
+        datoAscii++;
+        *datoAscii = permut[0];
+        datoAscii++;
+        *datoAscii = permut[1];
+        datoAscii++;
+        *datoAscii = NULL;
+    }
+    else if (1 == numDig)
+    {
+        *datoAscii = '0';
+        datoAscii++;
+        *datoAscii = '0';
+        datoAscii++;
+        *datoAscii = permut[0];
+        datoAscii++;
+        *datoAscii = NULL;
+    }
+    else
+    {
+        *datoAscii = permut[0];
+        datoAscii++;
+        *datoAscii = permut[1];
+        datoAscii++;
+        *datoAscii = permut[2];
+        datoAscii++;
+        *datoAscii = NULL;
+    }
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -1225,7 +1261,7 @@ void Gyro(void *argument)
 {
   /* USER CODE BEGIN Gyro */
 #ifdef Gyroscope
-	struct Datos_Gyro Inclinacion;
+	//
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
 	//float AnguloX, AnguloY;
@@ -1252,7 +1288,7 @@ void Gyro(void *argument)
 		  break;
 
 	  case GYRO_IS_AVAILABLE:
-		  MPU6050_Init(hi2c1);
+		  MPU6050_Init(&hi2c1);
 		  Flag_Gyro = RUNNING_GYRO;
 		  break;
 
@@ -1268,8 +1304,8 @@ void Gyro(void *argument)
 	  if(RUNNING_GYRO == Flag_Gyro)
 	  {
 
-		datosG = MPU6050_Read_Gyro(hi2c1);
-		datosA = MPU6050_Read_Accel(hi2c1);
+		datosG = MPU6050_Read_Gyro(&hi2c1);
+		datosA = MPU6050_Read_Accel(&hi2c1);
 
 		dt = count_gyro/1000;
 		count_gyro = 0;
@@ -1337,7 +1373,7 @@ void EnvioDatos(void *argument)
 	osStatus_t val2;
 	struct Datos_Gyro buff2;
 #endif //Gyroscope
-
+	char display[4];
 	//uint8_t BufferTx[9];
   /* Infinite loop */
   for(;;)
@@ -1385,62 +1421,41 @@ void EnvioDatos(void *argument)
 		  SSD1306_GotoXY(0, 20);
 		  SSD1306_Puts("P:", &Font_7x10, 1);
 		  SSD1306_GotoXY(15, 20);
-		  SSD1306_Putc(((uint8_t)(BufferTx[1]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(22, 20);
-		  SSD1306_Putc(((uint8_t)((BufferTx[1]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(29, 20);
-		  SSD1306_Putc(((uint8_t)(BufferTx[1]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[1], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_GotoXY(0, 35);
 		  SSD1306_Puts("I:", &Font_7x10, 1);
 		  SSD1306_GotoXY(15, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[2]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(22, 35);
-		  SSD1306_Putc(((uint8_t)((BufferTx[2]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(29, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[2]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[2], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_GotoXY(0, 50);
 		  SSD1306_Puts("C:", &Font_7x10, 1);
 		  SSD1306_GotoXY(15, 50);
-		  SSD1306_Putc(((uint8_t)(BufferTx[3]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(22, 50);
-		  SSD1306_Putc(((uint8_t)((BufferTx[3]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(29, 50);
-		  SSD1306_Putc(((uint8_t)(BufferTx[3]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[3], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_GotoXY(46, 20);
 		  SSD1306_Puts("A:", &Font_7x10, 1);
 		  SSD1306_GotoXY(61, 20);
-		  SSD1306_Putc(((uint8_t)(BufferTx[4]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(68, 20);
-		  SSD1306_Putc(((uint8_t)((BufferTx[4]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(75, 20);
-		  SSD1306_Putc(((uint8_t)(BufferTx[4]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[4], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_GotoXY(46, 35);
 		  SSD1306_Puts("M:", &Font_7x10, 1);
 		  SSD1306_GotoXY(61, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[5]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(68, 35);
-		  SSD1306_Putc(((uint8_t)((BufferTx[5]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(75, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[5]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[5], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_GotoXY(92, 20);
 		  SSD1306_Puts("X-Y", &Font_7x10, 1);
 		  SSD1306_GotoXY(92, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[6]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(99, 35);
-		  SSD1306_Putc(((uint8_t)((BufferTx[6]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(106, 35);
-		  SSD1306_Putc(((uint8_t)(BufferTx[6]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[6], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 		  SSD1306_GotoXY(92, 50);
-		  SSD1306_Putc(((uint8_t)(BufferTx[7]/100)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(99, 50);
-		  SSD1306_Putc(((uint8_t)((BufferTx[7]%100)/10)+'0'), &Font_7x10, 1);
-		  SSD1306_GotoXY(106, 50);
-		  SSD1306_Putc(((uint8_t)(BufferTx[7]%10)+'0'), &Font_7x10, 1);
+		  ConvertData(BufferTx[7], display);
+		  SSD1306_Puts(display, &Font_7x10, 1);
 
 		  SSD1306_UpdateScreen();
 	  }
