@@ -32,13 +32,13 @@
 
 //#define Pulgar
 #define Indice
-//#define Medio
-//#define Anular
-//#define Menique
+#define Medio
+#define Anular
+#define Menique
 
 
 #define Gyroscope
-//#define Zigbee
+#define Zigbee
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -1190,33 +1190,41 @@ void AnalogRead(void *argument)
 
 	 for(int k = 0; k<5; k++)
 	 {
-		 if(datos[k] > analog_max[k]){
+		 if(datos[k] > analog_max[k])
+		 {
 			 datos[k] = analog_max[k];
 		 }
-		 else if(datos[k] < analog_min[k]){
+		 else if(datos[k] < analog_min[k])
+		 {
 			datos[k] = analog_min[k];
 		 }
 
 		 datos_f[k] = 0.3*datos[k] + 0.7*datos_f[k]; //filter
 
-		 if(0 == k){
-			 grados_pack[k] = 110-((datos_f[k]-analog_min[k])*(110-50))/(analog_max[k]-analog_min[k]+1); //el + 1 es para evitar dividir entre 0 en el caso de que algun dedo no funcione
+		 if(0 == k)
+		 {
+			 grados_pack[k] = 110 - ((analog_max[k] - datos_f[k]) * (110-50)) / (analog_max[k] - analog_min[k] + 1); //el + 1 es para evitar dividir entre 0 en el caso de que algun dedo no funcione
 
-			 if(grados_pack[k] > 110){
+			 if(grados_pack[k] > 110)
+			 {
 				 grados_pack[k] = 110;
 			 }
-			 else if(grados_pack[k] < 50){
+			 else if(grados_pack[k] < 50)
+			 {
 				 grados_pack[k] = 50;
 			 }
 		 }
-		 else{
-		 	 grados_pack[k] = 180-((datos_f[k]-analog_min[k])*(180-25))/(analog_max[k]-analog_min[k]+1); //el + 1 es para evitar dividir entre 0 en el caso de que algun dedo no funcione
+		 else
+		 {
+		 	 grados_pack[k] = 180 - ((analog_max[k] - datos_f[k]) * (180 - 25)) / (analog_max[k] - analog_min[k] + 1); //el + 1 es para evitar dividir entre 0 en el caso de que algun dedo no funcione
 
 
-			 if(grados_pack[k] > 180){
+			 if(grados_pack[k] > 180)
+			 {
 				 grados_pack[k] = 180;
 			 }
-			 else if(grados_pack[k] < 25){
+			 else if(grados_pack[k] < 25)
+			 {
 				 grados_pack[k] = 25;
 			 }
 		 }
