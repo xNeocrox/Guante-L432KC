@@ -30,7 +30,7 @@
 
 #define RESCALE_GYRO 90
 
-//#define Pulgar
+#define Pulgar
 #define Indice
 #define Medio
 #define Anular
