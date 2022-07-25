@@ -144,16 +144,13 @@ uint8_t ISR_cascade = 0;
 
 Init_State Flag_SSD_State = WAIT_TIMER_TO_BE_READY;
 Gyro_State Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
-uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 5 meñique
-uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 5 meñique
+uint32_t analog_max[5]={4000,4000,4000,4000,4000};  // 0 es pulgar, 4 meñique
+uint32_t analog_min[5]={0,0,0,0,0};  // 0 es pulgar, 4 meñique
 
 //END GLOBAL VARIABLES
 
 
 //DEBUG VARIABLES HERE
-uint8_t BufferTx[9];
-float AnguloX, AnguloY;
-struct Datos_Gyro Inclinacion;
 
 /* USER CODE END 0 */
 
@@ -727,7 +724,7 @@ void Inicializacion(void *argument)
 		  }
 		  break;
 	  case SEARCHING_OLED_I2C_DEVICE:
-		  Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
+		  //Flag_Gyro = SEARCHING_GYRO_I2C_DEVICE;
 		  Flag_SSD1306 = HAL_I2C_IsDeviceReady(&hi2c1, SSD1306_I2C_ADDR, 1, 1000); //before to the 20000 ms timeout
 		  if(HAL_OK == Flag_SSD1306)
 		  {
@@ -1272,7 +1269,8 @@ void Gyro(void *argument)
 	//
 	struct AccelFunction datosA;
 	struct GyroFunction datosG;
-	//float AnguloX, AnguloY;
+	float AnguloX, AnguloY;
+	struct Datos_Gyro Inclinacion;
 	HAL_StatusTypeDef Flag_MPU6050;
 #endif //Gyroscope
 
@@ -1303,55 +1301,46 @@ void Gyro(void *argument)
 	  case GYRO_IS_NOT_AVAILABLE:
 		  Flag_Gyro = RUNNING_WITHOUT_GYRO;
 		  break;
-	  case RUNNING_WITHOUT_GYRO:
 	  case RUNNING_GYRO:
-		  //nothing to do here
+		  datosG = MPU6050_Read_Gyro(&hi2c1);
+		  datosA = MPU6050_Read_Accel(&hi2c1);
+
+		  dt = count_gyro/1000;
+		  count_gyro = 0;
+
+		  //swaped scales from -90º/90º to 0º/180º
+		  AnguloX = 0.98*(AnguloX + datosG.Gx*dt) + 0.02*datosA.Ax;
+		  AnguloY = 0.98*(AnguloY + datosG.Gy*dt) + 0.02*datosA.Ay;
+
+		  Inclinacion.AnguloX = (uint8_t)(AnguloX + 90);
+		  Inclinacion.AnguloY = (uint8_t)(AnguloY + 90);
+
+		  if(130 < Inclinacion.AnguloX)
+		  {
+			  Inclinacion.AnguloX = 130;
+		  }
+		  else if(50 > Inclinacion.AnguloX)
+		  {
+			  Inclinacion.AnguloX = 50;
+		  }
+
+		  if(130 < Inclinacion.AnguloY)
+		  {
+			  Inclinacion.AnguloY = 130;
+		  }
+		  else if(50 > Inclinacion.AnguloY)
+		  {
+			  Inclinacion.AnguloY = 50;
+		  }
+		  osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
+		  break;
+	  case RUNNING_WITHOUT_GYRO:
+		  //if gyro doesn't work, angles set to 90º
+		  Inclinacion.AnguloX = 90;
+		  Inclinacion.AnguloY = 90;
+		  osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
 		  break;
 	  }
-
-	  if(RUNNING_GYRO == Flag_Gyro)
-	  {
-
-		datosG = MPU6050_Read_Gyro(&hi2c1);
-		datosA = MPU6050_Read_Accel(&hi2c1);
-
-		dt = count_gyro/1000;
-		count_gyro = 0;
-
-		//swaped scales from -90º/90º to 0º/180º
-		AnguloX = 0.98*(AnguloX + datosG.Gx*dt) + 0.02*datosA.Ax;
-		AnguloY = 0.98*(AnguloY + datosG.Gy*dt) + 0.02*datosA.Ay;
-
-		Inclinacion.AnguloX = (uint8_t)(AnguloX + 90);
-		Inclinacion.AnguloY = (uint8_t)(AnguloY + 90);
-
-		if(180 < Inclinacion.AnguloX)
-		{
-			Inclinacion.AnguloX = 180;
-		}
-		else if(0 > Inclinacion.AnguloX)
-		{
-			Inclinacion.AnguloX = 0;
-		}
-
-		if(180 < Inclinacion.AnguloY)
-		{
-			Inclinacion.AnguloY = 180;
-		}
-		else if(0 > Inclinacion.AnguloY)
-		{
-			Inclinacion.AnguloY = 0;
-		}
-
-		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
-	  }
-	  else if(RUNNING_WITHOUT_GYRO == Flag_Gyro)
-	  {
-		//if gyro doesn't work, angles set to 90º
-		Inclinacion.AnguloX = 90;
-		Inclinacion.AnguloY = 90;
-	  }
-		osMessageQueuePut(Queue2Handle, &Inclinacion, 0, 0);
 
 #endif //Gyroscope
 	osEventFlagsClear(FlagHandle,4U);
@@ -1382,12 +1371,19 @@ void EnvioDatos(void *argument)
 	struct Datos_Gyro buff2;
 #endif //Gyroscope
 	char display[4];
-	//uint8_t BufferTx[9];
+	uint8_t BufferTx[9];
   /* Infinite loop */
   for(;;)
   {
     //xEventGroupWaitBits(FlagHandle,2,pdFALSE,pdFALSE,portMAX_DELAY);
     osEventFlagsWait(FlagHandle, 8U, osFlagsNoClear, osWaitForever);
+
+#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+	val1 = osMessageQueueGet(Queue1Handle, &buff1, NULL, 0);
+#endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
+#ifdef Gyroscope
+	val2 = osMessageQueueGet(Queue2Handle, &buff2, NULL, 0);
+#endif //Gyroscope
 
     //DISPLAY
 	  if(GYRO_IS_AVAILABLE == Flag_Gyro)
@@ -1456,24 +1452,20 @@ void EnvioDatos(void *argument)
 		  ConvertData(BufferTx[5], display);
 		  SSD1306_Puts(display, &Font_7x10, 1);
 
-		  SSD1306_GotoXY(92, 20);
-		  SSD1306_Puts("X-Y", &Font_7x10, 1);
-		  SSD1306_GotoXY(92, 35);
-		  ConvertData(BufferTx[6], display);
-		  SSD1306_Puts(display, &Font_7x10, 1);
-		  SSD1306_GotoXY(92, 50);
-		  ConvertData(BufferTx[7], display);
-		  SSD1306_Puts(display, &Font_7x10, 1);
+		  if((RUNNING_GYRO == Flag_Gyro) || (RUNNING_WITHOUT_GYRO == Flag_Gyro))
+		  {
+		  	  SSD1306_GotoXY(92, 20);
+		  	  SSD1306_Puts("X-Y", &Font_7x10, 1);
+		  	  SSD1306_GotoXY(92, 35);
+		  	  ConvertData(BufferTx[6], display);
+		  	  SSD1306_Puts(display, &Font_7x10, 1);
+		  	  SSD1306_GotoXY(92, 50);
+		  	  ConvertData(BufferTx[7], display);
+		  	  SSD1306_Puts(display, &Font_7x10, 1);
+		  }
 
 		  SSD1306_UpdateScreen();
 	  }
-
-#if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
-	val1 = osMessageQueueGet(Queue1Handle, &buff1, NULL, 0);
-#endif // defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
-#ifdef Gyroscope
-	val2 = osMessageQueueGet(Queue2Handle, &buff2, NULL, 0);
-#endif //Gyroscope
 
 	if(
 #if defined(Pulgar)||defined(Indice)||defined(Medio)||defined(Anular)||defined(Menique)
